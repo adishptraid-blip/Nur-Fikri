@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Kasir & Database Nur Fikri</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800">
+
+    <!-- Modal Login -->
+    <div id="login-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-100">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-indigo-900">Nur Fikri Kasir</h1>
+                <p class="text-xs text-slate-500 mt-1">Silakan login untuk mengakses sistem</p>
+            </div>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Username</label>
+                    <input type="text" id="login-username" required class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Password</label>
+                    <input type="password" id="login-password" required class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div id="login-error" class="hidden text-xs text-rose-600 font-bold">Username atau password salah!</div>
+                <button type="submit" class="w-full py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-lg text-sm transition">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="app-content" class="hidden min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-indigo-900 text-white px-6 py-4 flex justify-between items-center shadow-lg">
+            <div class="flex items-center gap-3">
+                <span class="text-xl font-black tracking-wider">NUR FIKRI</span>
+                <span class="text-xs bg-indigo-800 px-2.5 py-1 rounded-full text-indigo-200">Sistem Keuangan</span>
+            </div>
+            <div class="flex items-center gap-4 text-xs">
+                <span>Halo, <b id="user-display-name">Admin</b></span>
+                <button onclick="handleLogout()" class="bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded font-bold transition">Logout</button>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <div class="bg-indigo-800 px-6 py-2 flex gap-2 border-t border-indigo-700">
+            <button id="tab-btn-dashboard" onclick="switchTab('dashboard')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-white text-indigo-800 shadow">Dashboard & Rekap</button>
+            <button id="tab-btn-students" onclick="switchTab('students')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-indigo-100 hover:text-white">Database Siswa</button>
+            <button id="tab-btn-input" onclick="switchTab('input')" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-indigo-100 hover:text-white">+ Buat Invoice</button>
+        </div>
+
+        <!-- Body Page -->
+        <main class="p-6 flex-1 max-w-7xl w-full mx-auto">
+            
+            <!-- PAGE: Dashboard -->
+            <div id="page-dashboard" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                        <div class="text-xs font-bold text-slate-400">TOTAL PEMBAYARAN</div>
+                        <div id="stat-total-income" class="text-xl font-extrabold text-emerald-600 mt-1">Rp 0</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                        <div class="text-xs font-bold text-slate-400">TOTAL INVOICE</div>
+                        <div id="stat-total-count" class="text-xl font-extrabold text-slate-800 mt-1">0</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                        <div class="text-xs font-bold text-slate-400">INVOICE LUNAS</div>
+                        <div id="stat-paid-count" class="text-xl font-extrabold text-indigo-600 mt-1">0</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                        <div class="text-xs font-bold text-slate-400">BELUM LUNAS</div>
+                        <div id="stat-unpaid-count" class="text-xl font-extrabold text-amber-600 mt-1">0</div>
+                        <div id="stat-unpaid-amount" class="text-[10px] text-amber-700 mt-0.5">Pending: Rp 0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <h2 class="font-bold text-slate-800 text-sm">Riwayat & Rekap Invoice</h2>
+                        <input type="text" id="dash-search" oninput="renderDashboardTable()" placeholder="Cari nama / no invoice..." class="px-3 py-1.5 text-xs border rounded-lg w-64 outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600 font-bold border-b">
+                                <tr>
+                                    <th class="p-3">NO INVOICE</th>
+                                    <th class="p-3">TANGGAL</th>
+                                    <th class="p-3">SISWA</th>
+                                    <th class="p-3">ITEM</th>
+                                    <th class="p-3 text-right">TOTAL</th>
+                                    <th class="p-3 text-center">STATUS</th>
+                                    <th class="p-3">PETUGAS</th>
+                                    <th class="p-3 text-center">AKSI</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dash-table-body" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: Database Siswa -->
+            <div id="page-students" class="hidden space-y-6">
+                <!-- Sync Google Sheets Box -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">🔗</span>
+                        <h3 class="font-bold text-sm text-slate-800">Integrasi Google Sheets (Pendaftaran Google Form)</h3>
+                    </div>
+                    <p class="text-xs text-slate-500">Tautkan link Google Sheets hasil respon pendaftaran Google Form untuk sync otomatis data siswa secara masal.</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="gsheet-url" value="https://docs.google.com/spreadsheets/d/1UMVMkeXpEP9fGhQFCnse1_Cdhw8po2TAR82eN-u9Y7Q/edit?usp=sharing" class="flex-1 px-3 py-2 text-xs border rounded-lg font-mono outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button onclick="syncGoogleSheetsData()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1">
+                            🔄 Sync Data dari Google Sheets Sekarang
+                        </button>
+                    </div>
+                    <div id="gsheet-status" class="text-xs italic text-slate-400"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Form Input Manual Siswa -->
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                        <h3 class="font-bold text-sm text-slate-800 border-b pb-2">+ Tambah Siswa Baru (Manual)</h3>
+                        <form id="add-student-form" onsubmit="handleAddNewStudent(event)" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-bold text-slate-600 mb-1">NIS Siswa</label>
+                                <input type="text" id="new-nis" required placeholder="Contoh: NF-202601" class="w-full px-3 py-1.5 border rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-600 mb-1">Nama Lengkap</label>
+                                <input type="text" id="new-nama" required placeholder="Nama Siswa" class="w-full px-3 py-1.5 border rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-600 mb-1">Program Bimbel</label>
+                                <select id="new-program" class="w-full px-3 py-1.5 border rounded-lg bg-white">
+                                    <option value="Bimbel Reguler">Bimbel Reguler</option>
+                                    <option value="Bimbel Intensif">Bimbel Intensif</option>
+                                    <option value="Privat">Privat</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-600 mb-1">Cabang</label>
+                                <input type="text" id="new-cabang" value="Nur Fikri Ciamis" class="w-full px-3 py-1.5 border rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-600 mb-1">No WhatsApp Orang Tua</label>
+                                <input type="text" id="new-wa" placeholder="08xxxxxxxxxx" class="w-full px-3 py-1.5 border rounded-lg">
+                            </div>
+                            <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition">Simpan Siswa</button>
+                        </form>
+                        <div class="border-t pt-3">
+                            <label class="block font-bold text-slate-600 mb-1 text-xs">Atau Import via Excel (.xlsx)</label>
+                            <input type="file" id="excel-file" accept=".xlsx, .xls" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700">
+                            <div id="upload-info" class="text-[10px] text-emerald-600 mt-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Data Siswa -->
+                    <div class="md:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h2 class="font-bold text-slate-800 text-sm">Database Siswa Registered</h2>
+                                <p class="text-[10px] text-slate-400">Total: <span id="stat-student-total">0</span> Siswa | Aktif: <span id="stat-student-active">0</span></p>
+                            </div>
+                            <input type="text" id="student-search" oninput="renderStudentsTable()" placeholder="Cari nama/NIS..." class="px-3 py-1.5 text-xs border rounded-lg w-48 outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-100 text-slate-600 font-bold border-b">
+                                    <tr>
+                                        <th class="p-3">NIS</th>
+                                        <th class="p-3">NAMA SISWA</th>
+                                        <th class="p-3">PROGRAM</th>
+                                        <th class="p-3">CABANG</th>
+                                        <th class="p-3">WA ORANG TUA</th>
+                                        <th class="p-3 text-center">STATUS</th>
+                                        <th class="p-3 text-center">AKSI</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="student-table-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: Input Invoice -->
+            <div id="page-input" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Form Input Left -->
+                <div class="lg:col-span-7 bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <h3 class="font-bold text-sm text-slate-800 border-b pb-2">Input Rincian Transaksi Invoice</h3>
+                    
+                    <!-- Cari Siswa -->
+                    <div class="relative">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Cari / Pilih Siswa</label>
+                        <input type="text" id="search-student" placeholder="Ketik nama siswa..." class="w-full px-3 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <div id="search-results" class="hidden absolute top-full left-0 right-0 bg-white border rounded-b-lg shadow-lg z-20 max-h-48 overflow-y-auto"></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                            <label class="block font-bold text-slate-600 mb-1">NIS</label>
+                            <input type="text" id="student-nis" readonly class="w-full px-3 py-1.5 bg-slate-50 border rounded-lg font-mono">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-600 mb-1">Cabang</label>
+                            <input type="text" id="student-branch" readonly class="w-full px-3 py-1.5 bg-slate-50 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-600 mb-1">Program</label>
+                            <input type="text" id="student-program" readonly class="w-full px-3 py-1.5 bg-slate-50 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-600 mb-1">No WA Orang Tua</label>
+                            <input type="text" id="student-wa" class="w-full px-3 py-1.5 border rounded-lg font-mono">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Tambah Item -->
+                    <div class="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs">
+                        <div class="font-bold text-slate-700">Tambah Item Pembayaran</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Jenis Item</label>
+                                <select id="item-type" onchange="toggleItemInputs()" class="w-full px-2 py-1.5 border rounded bg-white">
+                                    <option value="SPP">Biaya SPP</option>
+                                    <option value="Modul">Buku Modul / Akses</option>
+                                    <option value="Kaos">Kaos / Seragam</option>
+                                    <option value="Pendaftaran">Biaya Pendaftaran</option>
+                                </select>
+                            </div>
+                            <div id="box-spp-month">
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Pilih Bulan SPP</label>
+                                <select id="item-month" class="w-full px-2 py-1.5 border rounded bg-white">
+                                    <option value="Januari">Januari</option>
+                                    <option value="Februari">Februari</option>
+                                    <option value="Maret">Maret</option>
+                                    <option value="April">April</option>
+                                    <option value="Mei">Mei</option>
+                                    <option value="Juni">Juni</option>
+                                    <option value="Juli">Juli</option>
+                                    <option value="Agustus">Agustus</option>
+                                    <option value="September">September</option>
+                                    <option value="Oktober">Oktober</option>
+                                    <option value="November">November</option>
+                                    <option value="Desember">Desember</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="box-program" class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Tahun</label>
+                                <input type="number" id="item-year" value="2026" class="w-full px-2 py-1.5 border rounded">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Opsi Program</label>
+                                <select id="item-program-opt" class="w-full px-2 py-1.5 border rounded bg-white">
+                                    <option value="Reguler">Reguler</option>
+                                    <option value="Intensif">Intensif</option>
+                                    <option value="Privat">Privat</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="box-book-type" class="hidden">
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Opsi Buku / Modul</label>
+                            <select id="item-book-opt" onchange="checkCustomBookOption()" class="w-full px-2 py-1.5 border rounded bg-white">
+                                <option value="Modul Semester 1">Modul Semester 1</option>
+                                <option value="Modul Semester 2">Modul Semester 2</option>
+                                <option value="Buku Soal UTBK/SNBT">Buku Soal UTBK/SNBT</option>
+                                <option value="Lainnya">Lainnya...</option>
+                            </select>
+                        </div>
+
+                        <div id="box-custom-desc" class="hidden">
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Keterangan Tambahan</label>
+                            <input type="text" id="item-custom-text" placeholder="Detail item..." class="w-full px-2 py-1.5 border rounded">
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Harga (Rp)</label>
+                                <input type="number" id="item-price" value="250000" class="w-full px-2 py-1.5 border rounded font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Jumlah (Qty)</label>
+                                <input type="number" id="item-qty" value="1" min="1" class="w-full px-2 py-1.5 border rounded font-mono">
+                            </div>
+                            <div class="flex items-end">
+                                <button onclick="addItemToInvoice()" class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded transition text-xs">+ Tambah</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- List Items Added -->
+                    <div class="border rounded-lg p-3 text-xs">
+                        <div class="font-bold text-slate-700 mb-2">Daftar Item Terpilih:</div>
+                        <div id="added-items-list" class="space-y-1 divide-y">
+                            <p class="text-slate-400 italic text-center py-2">Belum ada item ditambahkan.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                            <label class="block font-bold text-slate-600 mb-1">Diskon / Potongan (Rp)</label>
+                            <input type="number" id="inv-discount" value="0" class="w-full px-3 py-1.5 border rounded-lg font-mono">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-600 mb-1">Status Pembayaran</label>
+                            <select id="inv-status-input" class="w-full px-3 py-1.5 border rounded-lg bg-white font-bold">
+                                <option value="Lunas">Lunas</option>
+                                <option value="Belum Lunas">Belum Lunas</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview Invoice Right -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div id="invoice-preview-card" class="bg-white p-6 rounded-xl shadow-md border border-slate-200 text-xs text-slate-800 space-y-4">
+                        <div class="flex justify-between items-start border-b pb-4">
+                            <div>
+                                <h2 class="text-lg font-black text-indigo-900 tracking-wider">NUR FIKRI</h2>
+                                <p class="text-[10px] text-slate-500">Bimbingan Belajar & Konsultasi Pendidikan</p>
+                            </div>
+                            <div class="text-right font-mono">
+                                <div id="prev-inv-num" class="font-bold text-slate-800">INV/2026/0000</div>
+                                <div id="prev-inv-date" class="text-[10px] text-slate-400">01/01/2026</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-1">
+                            <div class="flex justify-between"><span class="text-slate-400">Siswa:</span> <span id="prev-name" class="font-bold text-slate-800">- Pilih Siswa -</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">NIS:</span> <span id="prev-nis" class="font-mono">-</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Cabang:</span> <span id="prev-branch">-</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Program:</span> <span id="prev-program">-</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">No WA:</span> <span id="prev-wa" class="font-mono">-</span></div>
+                        </div>
+
+                        <div>
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="border-b text-slate-400 font-bold">
+                                        <th class="py-1">Deskripsi</th>
+                                        <th class="py-1 text-center">Qty</th>
+                                        <th class="py-1 text-right">Harga</th>
+                                        <th class="py-1 text-right">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="prev-items-body" class="divide-y divide-slate-100">
+                                    <tr><td colspan="4" class="py-3 text-center text-slate-400 italic">Belum ada item ditambahkan.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="border-t pt-3 space-y-1.5 font-mono">
+                            <div id="row-discount" class="flex justify-between text-rose-600 hidden">
+                                <span>Potongan / Diskon:</span>
+                                <span id="prev-discount">- Rp 0</span>
+                            </div>
+                            <div class="flex justify-between text-sm font-bold text-slate-900 border-t pt-2">
+                                <span>TOTAL BAYAR:</span>
+                                <span id="prev-total" class="text-indigo-900 text-base font-black">Rp 0</span>
+                            </div>
+                        </div>
+
+                        <div class="text-[10px] text-slate-400 border-t pt-3 flex justify-between items-center">
+                            <span>Petugas: <b id="prev-admin-name">Admin</b></span>
+                            <span>Terima kasih atas kepercayaannya.</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="saveInvoiceToDashboard()" class="flex-1 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-lg text-xs transition shadow">
+                            💾 Simpan Ke Rekap
+                        </button>
+                        <button onclick="sendWhatsApp()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shadow">
+                            💬 Kirim WA
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Hidden Input Date & Inv Generator Needed JS -->
+    <input type="hidden" id="inv-number">
+    <input type="hidden" id="inv-date">
+
+    <!-- JavaScript Application Logic -->
+    <script>
+    const ACCOUNTS = {
+        'admin1': { name: 'Admin Keuangan 1', pass: 'password123' },
+        'admin2': { name: 'Admin Keuangan 2', pass: 'password123' }
+    };
+
+    let currentUser = JSON.parse(sessionStorage.getItem('nf_user')) || null;
+    let studentsDatabase = JSON.parse(localStorage.getItem('nf_students_db')) || [];
+    let currentInvoiceItems = [];
+    let invoiceList = JSON.parse(localStorage.getItem('nf_invoices')) || [];
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (currentUser) {
+            initApp();
+        } else {
+            document.getElementById('login-modal').classList.remove('hidden');
+            document.getElementById('app-content').classList.add('hidden');
+        }
+    });
+
+    function handleLogin(e) {
+        e.preventDefault();
+        const u = document.getElementById('login-username').value.trim();
+        const p = document.getElementById('login-password').value.trim();
+        const err = document.getElementById('login-error');
+
+        if (ACCOUNTS[u] && ACCOUNTS[u].pass === p) {
+            currentUser = { username: u, name: ACCOUNTS[u].name };
+            sessionStorage.setItem('nf_user', JSON.stringify(currentUser));
+            err.classList.add('hidden');
+            initApp();
+        } else {
+            err.classList.remove('hidden');
+        }
+    }
+
+    function handleLogout() {
+        sessionStorage.removeItem('nf_user');
+        currentUser = null;
+        location.reload();
+    }
+
+    function initApp() {
+        document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('app-content').classList.remove('hidden');
+        document.getElementById('user-display-name').innerText = currentUser.name;
+        document.getElementById('prev-admin-name').innerText = currentUser.name;
+        renderDashboardTable();
+        renderStudentsTable();
+        
+        // Auto-sync Google Sheets jika database masih kosong
+        if(studentsDatabase.length === 0) {
+            syncGoogleSheetsData();
+        }
+    }
+
+    function switchTab(tab) {
+        const dashPage = document.getElementById('page-dashboard');
+        const studentPage = document.getElementById('page-students');
+        const inputPage = document.getElementById('page-input');
+
+        const dashBtn = document.getElementById('tab-btn-dashboard');
+        const studentBtn = document.getElementById('tab-btn-students');
+        const inputBtn = document.getElementById('tab-btn-input');
+
+        [dashPage, studentPage, inputPage].forEach(p => p.classList.add('hidden'));
+        [dashBtn, studentBtn, inputBtn].forEach(b => b.className = "px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-indigo-100 hover:text-white");
+
+        if (tab === 'dashboard') {
+            dashPage.classList.remove('hidden');
+            dashBtn.className = "px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-white text-indigo-800 shadow";
+            renderDashboardTable();
+        } else if (tab === 'students') {
+            studentPage.classList.remove('hidden');
+            studentBtn.className = "px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-white text-indigo-800 shadow";
+            renderStudentsTable();
+        } else {
+            inputPage.classList.remove('hidden');
+            inputBtn.className = "px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-white text-indigo-800 shadow";
+        }
+    }
+
+    // Tambah Siswa Manual & Auto Sync Ke Database
+    function handleAddNewStudent(e) {
+        e.preventDefault();
+        const nis = document.getElementById('new-nis').value.trim();
+        const nama = document.getElementById('new-nama').value.trim();
+        const program = document.getElementById('new-program').value;
+        const cabang = document.getElementById('new-cabang').value.trim();
+        const wa = document.getElementById('new-wa').value.trim();
+
+        const newStudent = { nis, nama, program, cabang, wa, status: 'Aktif' };
+
+        // Cek duplikasi NIS
+        const existingIndex = studentsDatabase.findIndex(s => s.nis.toLowerCase() === nis.toLowerCase());
+        if (existingIndex !== -1) {
+            studentsDatabase[existingIndex] = newStudent;
+        } else {
+            studentsDatabase.unshift(newStudent);
+        }
+
+        localStorage.setItem('nf_students_db', JSON.stringify(studentsDatabase));
+        alert(`Siswa ${nama} (${nis}) berhasil ditambahkan ke database Nur Fikri!`);
+        
+        // Reset Form & Render Ulang
+        document.getElementById('add-student-form').reset();
+        document.getElementById('new-cabang').value = 'Nur Fikri Ciamis';
+        renderStudentsTable();
+    }
+
+    // Fetch Google Sheets Data (Bypassing CORS via Google Visualization API)
+    function syncGoogleSheetsData() {
+        const urlInput = document.getElementById('gsheet-url').value.trim();
+        const statusDiv = document.getElementById('gsheet-status');
+        
+        statusDiv.className = "mt-2 text-xs font-medium italic text-amber-600";
+        statusDiv.innerText = "⏳ Sedang mengambil data dari Google Sheets...";
+
+        // Ekstrak Sheet ID dari Link
+        const match = urlInput.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (!match || !match[1]) {
+            statusDiv.className = "mt-2 text-xs font-medium italic text-rose-600";
+            statusDiv.innerText = "⚠️ Link Google Sheets tidak valid. Pastikan format link benar!";
+            return;
+        }
+
+        const sheetId = match[1];
+        
+        // Menggunakan Google Visualization Query API (Bypass CORS Error)
+        const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
+
+        // Hapus script callback lama jika ada
+        const oldScript = document.getElementById('gviz-script');
+        if (oldScript) oldScript.remove();
+
+        // Buat callback global untuk menerima data dari Google
+        window.handleGvizResponse = function(response) {
+            try {
+                if (response.isError()) {
+                    throw new Error("Gagal membaca Google Sheets. Pastikan akses spreadsheet sudah diset 'Siapa saja yang memiliki link / Anyone with link'");
+                }
+
+                const dataTable = response.getDataTable();
+                const numRows = dataTable.getNumberOfRows();
+                const fetchedStudents = [];
+
+                for (let r = 0; r < numRows; r++) {
+                    // Mengambil nilai per kolom
+                    const nis = dataTable.getValue(r, 0) ? String(dataTable.getValue(r, 0)).trim() : `NF-${1000 + r}`;
+                    const nama = dataTable.getValue(r, 1) ? String(dataTable.getValue(r, 1)).trim() : '';
+                    const program = dataTable.getValue(r, 2) ? String(dataTable.getValue(r, 2)).trim() : 'Bimbel Reguler';
+                    const cabang = dataTable.getValue(r, 3) ? String(dataTable.getValue(r, 3)).trim() : 'Nur Fikri Ciamis';
+                    const wa = dataTable.getValue(r, 4) ? String(dataTable.getValue(r, 4)).trim() : '';
+
+                    if (nama) {
+                        fetchedStudents.push({ nis, nama, program, cabang, wa, status: 'Aktif' });
+                    }
+                }
+
+                if (fetchedStudents.length > 0) {
+                    fetchedStudents.forEach(fs => {
+                        const idx = studentsDatabase.findIndex(s => s.nis.toLowerCase() === fs.nis.toLowerCase());
+                        if (idx !== -1) {
+                            studentsDatabase[idx] = fs; // update
+                        } else {
+                            studentsDatabase.push(fs); // add new
+                        }
+                    });
+
+                    localStorage.setItem('nf_students_db', JSON.stringify(studentsDatabase));
+                    statusDiv.className = "mt-2 text-xs font-medium italic text-emerald-600";
+                    statusDiv.innerText = `✅ Berhasil sinkronisasi ${fetchedStudents.length} siswa dari Google Sheets!`;
+                    renderStudentsTable();
+                } else {
+                    statusDiv.className = "mt-2 text-xs font-medium italic text-amber-600";
+                    statusDiv.innerText = "⚠️ Google Sheets terhubung, tapi tidak ada data nama siswa yang ditemukan.";
+                }
+            } catch (err) {
+                statusDiv.className = "mt-2 text-xs font-medium italic text-rose-600";
+                statusDiv.innerText = "⚠️ " + err.message;
+            }
+        };
+
+        // Panggil API Google Sheets via JSONP Injection
+        const script = document.createElement('script');
+        script.id = 'gviz-script';
+        script.src = `${gvizUrl}&responseHandler=handleGvizResponse`;
+        script.onerror = function() {
+            statusDiv.className = "mt-2 text-xs font-medium italic text-rose-600";
+            statusDiv.innerText = "⚠️ Gagal terhubung! Pastikan koneksi internet aktif dan link Google Sheets diset ke publik (Anyone with link).";
+        };
+        document.body.appendChild(script);
+    }
+
+    // Excel Reader
+    document.addEventListener('DOMContentLoaded', () => {
+        const excelInput = document.getElementById('excel-file');
+        if (excelInput) {
+            excelInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames.find(s => s.includes('Database Siswa')) || workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    let countAdded = 0;
+                    for (let i = 2; i < json.length; i++) {
+                        const row = json[i];
+                        if (row && row[1] && row[2]) {
+                            const newS = {
+                                nis: String(row[1]).trim(),
+                                nama: String(row[2]).trim(),
+                                cabang: row[12] ? String(row[12]).trim() : 'Nur Fikri Ciamis',
+                                program: row[13] ? String(row[13]).trim() : 'Bimbel Reguler',
+                                wa: row[16] ? String(row[16]).trim() : '',
+                                status: 'Aktif'
+                            };
+                            if (!studentsDatabase.some(s => s.nis === newS.nis)) {
+                                studentsDatabase.push(newS);
+                                countAdded++;
+                            }
+                        }
+                    }
+
+                    localStorage.setItem('nf_students_db', JSON.stringify(studentsDatabase));
+                    document.getElementById('upload-info').innerHTML = `✅ Berhasil mengimpor ${countAdded} data siswa baru dari Excel.`;
+                    renderStudentsTable();
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        const searchInput = document.getElementById('search-student');
+        const resultsDiv = document.getElementById('search-results');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const query = this.value.toLowerCase().trim();
+                resultsDiv.innerHTML = '';
+
+                if (query.length < 1 || studentsDatabase.length === 0) {
+                    resultsDiv.classList.add('hidden');
+                    return;
+                }
+
+                const filtered = studentsDatabase.filter(s => 
+                    s.nama.toLowerCase().includes(query) || s.nis.toLowerCase().includes(query)
+                ).slice(0, 10);
+
+                if (filtered.length === 0) {
+                    resultsDiv.classList.add('hidden');
+                    return;
+                }
+
+                filtered.forEach(s => {
+                    const item = document.createElement('div');
+                    item.className = 'p-2.5 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 text-xs transition';
+                    item.innerHTML = `<div class="font-bold text-slate-800">${s.nama}</div><div class="text-[10px] text-slate-500 font-mono">NIS: ${s.nis} | Program: ${s.program} (${s.cabang})</div>`;
+                    item.onclick = function() {
+                        selectStudentForInvoice(s);
+                    };
+                    resultsDiv.appendChild(item);
+                });
+
+                resultsDiv.classList.remove('hidden');
+            });
+        }
+
+        const invDate = document.getElementById('inv-date');
+        const invNum = document.getElementById('inv-number');
+        if (invDate) invDate.valueAsDate = new Date();
+        if (invNum) invNum.value = 'INV/' + new Date().getFullYear() + '/' + Math.floor(1000 + Math.random() * 9000);
+
+        ['search-student', 'inv-number', 'inv-date', 'inv-discount', 'student-wa'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', updateInvoicePreview);
+                el.addEventListener('change', updateInvoicePreview);
+            }
+        });
+    });
+
+    function selectStudentForInvoice(s) {
+        document.getElementById('search-student').value = s.nama;
+        document.getElementById('student-nis').value = s.nis;
+        document.getElementById('student-branch').value = s.cabang;
+        document.getElementById('student-program').value = s.program;
+        document.getElementById('student-wa').value = s.wa;
+        const resultsDiv = document.getElementById('search-results');
+        if(resultsDiv) resultsDiv.classList.add('hidden');
+        updateInvoicePreview();
+        switchTab('input');
+    }
+
+    function toggleItemInputs() {
+        const type = document.getElementById('item-type').value;
+        const boxMonth = document.getElementById('box-spp-month');
+        const boxProgram = document.getElementById('box-program');
+        const boxBookType = document.getElementById('box-book-type');
+        const boxCustom = document.getElementById('box-custom-desc');
+
+        if (type === 'SPP') {
+            boxMonth.classList.remove('hidden');
+            boxProgram.classList.remove('hidden');
+            boxBookType.classList.add('hidden');
+            boxCustom.classList.add('hidden');
+            document.getElementById('item-price').value = 250000;
+        } else if (type === 'Modul') {
+            boxMonth.classList.add('hidden');
+            boxProgram.classList.remove('hidden');
+            boxBookType.classList.remove('hidden');
+            checkCustomBookOption();
+            document.getElementById('item-price').value = 50000;
+        } else if (type === 'Kaos') {
+            boxMonth.classList.add('hidden');
+            boxProgram.classList.add('hidden');
+            boxBookType.classList.add('hidden');
+            boxCustom.classList.remove('hidden');
+            document.getElementById('item-custom-text').placeholder = "Misal: Ukuran L / M";
+            document.getElementById('item-price').value = 90000;
+        } else {
+            boxMonth.classList.add('hidden');
+            boxProgram.classList.add('hidden');
+            boxBookType.classList.add('hidden');
+            boxCustom.classList.remove('hidden');
+            document.getElementById('item-custom-text').placeholder = "Keterangan Item...";
+            document.getElementById('item-price').value = 100000;
+        }
+    }
+
+    function checkCustomBookOption() {
+        const bookOpt = document.getElementById('item-book-opt').value;
+        const boxCustom = document.getElementById('box-custom-desc');
+        if (bookOpt === 'Lainnya') {
+            boxCustom.classList.remove('hidden');
+            document.getElementById('item-custom-text').placeholder = "Ketik judul/keterangan buku...";
+        } else {
+            boxCustom.classList.add('hidden');
+        }
+    }
+
+    function addItemToInvoice() {
+        const type = document.getElementById('item-type').value;
+        const price = parseFloat(document.getElementById('item-price').value) || 0;
+        const qty = parseInt(document.getElementById('item-qty').value) || 1;
+        let title = '';
+
+        if (type === 'SPP') {
+            const prog = document.getElementById('item-program-opt').value;
+            const month = document.getElementById('item-month').value;
+            const year = document.getElementById('item-year').value;
+            title = `SPP ${prog} - Bulan ${month} ${year}`;
+        } else if (type === 'Modul') {
+            const prog = document.getElementById('item-program-opt').value;
+            const bookOpt = document.getElementById('item-book-opt').value;
+            const customText = document.getElementById('item-custom-text').value;
+            
+            const bookTitle = bookOpt === 'Lainnya' ? (customText || 'Buku Modul') : bookOpt;
+            title = `Modul (${bookTitle}) - ${prog}`;
+        } else if (type === 'Kaos') {
+            const detail = document.getElementById('item-custom-text').value || 'All Size';
+            title = `Kaos / Seragam Nur Fikri (${detail})`;
+        } else {
+            const detail = document.getElementById('item-custom-text').value || 'Biaya Registrasi';
+            title = `${type} - ${detail}`;
+        }
+
+        currentInvoiceItems.push({
+            id: Date.now(),
+            title: title,
+            price: price,
+            qty: qty,
+            subtotal: price * qty
+        });
+
+        renderAddedItemsList();
+        updateInvoicePreview();
+    }
+
+    function removeItem(id) {
+        currentInvoiceItems = currentInvoiceItems.filter(i => i.id !== id);
+        renderAddedItemsList();
+        updateInvoicePreview();
+    }
+
+    function renderAddedItemsList() {
+        const listDiv = document.getElementById('added-items-list');
+        if (currentInvoiceItems.length === 0) {
+            listDiv.innerHTML = `<p class="text-slate-400 italic text-center py-2">Belum ada item ditambahkan.</p>`;
+            return;
+        }
+
+        listDiv.innerHTML = '';
+        currentInvoiceItems.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'flex justify-between items-center py-1 font-medium';
+            div.innerHTML = `
+                <div>
+                    <span class="font-bold text-slate-800">${item.title}</span>
+                    <span class="text-[10px] text-slate-500 font-mono"> (${item.qty}x @ ${formatRupiah(item.price)})</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-indigo-700 font-mono">${formatRupiah(item.subtotal)}</span>
+                    <button onclick="removeItem(${item.id})" class="text-rose-500 font-bold hover:text-rose-700 px-1">✕</button>
+                </div>
+            `;
+            listDiv.appendChild(div);
+        });
+    }
+
+    function formatRupiah(val) {
+        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+    }
+
+    function updateInvoicePreview() {
+        const name = document.getElementById('search-student').value || '- Pilih Siswa -';
+        const nis = document.getElementById('student-nis').value || '-';
+        const branch = document.getElementById('student-branch').value || 'Nur Fikri Ciamis';
+        const program = document.getElementById('student-program').value || '-';
+        const wa = document.getElementById('student-wa').value || '-';
+        const invNum = document.getElementById('inv-number').value;
+        const invDate = document.getElementById('inv-date').value;
+        const discount = parseFloat(document.getElementById('inv-discount').value) || 0;
+
+        document.getElementById('prev-name').innerText = name;
+        document.getElementById('prev-nis').innerText = nis;
+        document.getElementById('prev-branch').innerText = branch;
+        document.getElementById('prev-program').innerText = program;
+        document.getElementById('prev-wa').innerText = wa;
+        document.getElementById('prev-inv-num').innerText = invNum;
+        document.getElementById('prev-inv-date').innerText = invDate ? new Date(invDate).toLocaleDateString('id-ID') : '-';
+
+        const tbody = document.getElementById('prev-items-body');
+        tbody.innerHTML = '';
+
+        let grandTotal = 0;
+
+        if (currentInvoiceItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="py-3 text-center text-slate-400 italic">Belum ada item ditambahkan.</td></tr>`;
+        } else {
+            currentInvoiceItems.forEach(i => {
+                grandTotal += i.subtotal;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-2 font-medium text-slate-800">${i.title}</td>
+                    <td class="py-2 text-center font-mono">${i.qty}</td>
+                    <td class="py-2 text-right font-mono">${formatRupiah(i.price)}</td>
+                    <td class="py-2 text-right font-mono font-bold text-slate-800">${formatRupiah(i.subtotal)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        const finalTotal = grandTotal - discount;
+
+        if (discount > 0) {
+            document.getElementById('row-discount').classList.remove('hidden');
+            document.getElementById('prev-discount').innerText = '- ' + formatRupiah(discount);
+        } else {
+            document.getElementById('row-discount').classList.add('hidden');
+        }
+        document.getElementById('prev-total').innerText = formatRupiah(finalTotal < 0 ? 0 : finalTotal);
+    }
+
+    function saveInvoiceToDashboard() {
+        const name = document.getElementById('search-student').value;
+        if (!name) return alert('Silakan pilih nama siswa!');
+        if (currentInvoiceItems.length === 0) return alert('Tambahkan minimal 1 item pembayaran!');
+
+        const discount = parseFloat(document.getElementById('inv-discount').value) || 0;
+        const subtotal = currentInvoiceItems.reduce((acc, curr) => acc + curr.subtotal, 0);
+
+        const invData = {
+            id: Date.now(),
+            invNum: document.getElementById('inv-number').value,
+            date: document.getElementById('inv-date').value,
+            name: name,
+            nis: document.getElementById('student-nis').value,
+            branch: document.getElementById('student-branch').value,
+            program: document.getElementById('student-program').value,
+            wa: document.getElementById('student-wa').value,
+            items: [...currentInvoiceItems],
+            discount: discount,
+            total: subtotal - discount,
+            status: document.getElementById('inv-status-input').value,
+            createdByName: currentUser ? currentUser.name : 'Admin'
+        };
+
+        invoiceList.unshift(invData);
+        localStorage.setItem('nf_invoices', JSON.stringify(invoiceList));
+
+        alert('Invoice ' + invData.invNum + ' berhasil disimpan oleh ' + invData.createdByName + '!');
+        currentInvoiceItems = [];
+        renderAddedItemsList();
+        document.getElementById('inv-number').value = 'INV/' + new Date().getFullYear() + '/' + Math.floor(1000 + Math.random() * 9000);
+        switchTab('dashboard');
+    }
+
+    function renderDashboardTable() {
+        const tbody = document.getElementById('dash-table-body');
+        const search = document.getElementById('dash-search').value.toLowerCase();
+        tbody.innerHTML = '';
+
+        let totalIncome = 0;
+        let paidCount = 0;
+        let unpaidCount = 0;
+        let unpaidAmount = 0;
+
+        const filtered = invoiceList.filter(inv => 
+            inv.name.toLowerCase().includes(search) || inv.invNum.toLowerCase().includes(search)
+        );
+
+        filtered.forEach(inv => {
+            if (inv.status === 'Lunas') {
+                totalIncome += inv.total;
+                paidCount++;
+            } else {
+                unpaidCount++;
+                unpaidAmount += inv.total;
+            }
+
+            const itemSummary = inv.items.map(i => `${i.title} (${i.qty}x)`).join(', ');
+
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50 transition';
+            tr.innerHTML = `
+                <td class="p-3 font-mono font-bold text-slate-800">${inv.invNum}</td>
+                <td class="p-3 text-slate-500">${inv.date}</td>
+                <td class="p-3">
+                    <div class="font-bold text-slate-800">${inv.name}</div>
+                    <div class="text-[10px] text-slate-400">NIS: ${inv.nis} | ${inv.branch}</div>
+                </td>
+                <td class="p-3 text-slate-600 max-w-xs truncate" title="${itemSummary}">${itemSummary}</td>
+                <td class="p-3 text-right font-mono font-bold text-slate-800">${formatRupiah(inv.total)}</td>
+                <td class="p-3 text-center">
+                    <select onchange="toggleStatus(${inv.id}, this.value)" class="text-[10px] font-bold px-2 py-1 rounded-full border border-slate-200 cursor-pointer ${inv.status === 'Lunas' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                        <option value="Lunas" ${inv.status === 'Lunas' ? 'selected' : ''}>Lunas</option>
+                        <option value="Belum Lunas" ${inv.status === 'Belum Lunas' ? 'selected' : ''}>Belum Lunas</option>
+                    </select>
+                </td>
+                <td class="p-3 text-slate-500 text-[11px] font-medium">👤 ${inv.createdByName || 'Admin'}</td>
+                <td class="p-3 text-center space-x-1">
+                    <button onclick="sendWaFromList(${inv.id})" class="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-1.5 rounded" title="Kirim WA">💬</button>
+                    <button onclick="deleteInvoice(${inv.id})" class="bg-rose-50 text-rose-600 hover:bg-rose-100 p-1.5 rounded" title="Hapus">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('stat-total-income').innerText = formatRupiah(totalIncome);
+        document.getElementById('stat-total-count').innerText = invoiceList.length;
+        document.getElementById('stat-paid-count').innerText = paidCount;
+        document.getElementById('stat-unpaid-count').innerText = unpaidCount;
+        document.getElementById('stat-unpaid-amount').innerText = 'Pending: ' + formatRupiah(unpaidAmount);
+    }
+
+    function renderStudentsTable() {
+        const tbody = document.getElementById('student-table-body');
+        const search = document.getElementById('student-search').value.toLowerCase();
+        tbody.innerHTML = '';
+
+        const filtered = studentsDatabase.filter(s => 
+            s.nama.toLowerCase().includes(search) || s.nis.toLowerCase().includes(search) || s.program.toLowerCase().includes(search)
+        );
+
+        document.getElementById('stat-student-total').innerText = studentsDatabase.length;
+        document.getElementById('stat-student-active').innerText = studentsDatabase.filter(s => s.status === 'Aktif' || !s.status).length;
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400 italic">Data siswa tidak ditemukan.</td></tr>`;
+            return;
+        }
+
+        filtered.forEach(s => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50 transition';
+            tr.innerHTML = `
+                <td class="p-3 font-mono text-slate-500 font-bold">${s.nis}</td>
+                <td class="p-3 font-bold text-slate-800">${s.nama}</td>
+                <td class="p-3 text-slate-600">${s.program}</td>
+                <td class="p-3 text-slate-600">${s.cabang}</td>
+                <td class="p-3 text-slate-600 font-mono">${s.wa || '-'}</td>
+                <td class="p-3 text-center">
+                    <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">Aktif</span>
+                </td>
+                <td class="p-3 text-center">
+                    <button onclick='selectStudentForInvoice(${JSON.stringify(s)})' class="bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 px-2.5 py-1 rounded text-xs font-bold transition">
+                        + Buat Invoice
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function toggleStatus(id, newStatus) {
+        const idx = invoiceList.findIndex(i => i.id === id);
+        if (idx !== -1) {
+            invoiceList[idx].status = newStatus;
+            localStorage.setItem('nf_invoices', JSON.stringify(invoiceList));
+            renderDashboardTable();
+        }
+    }
+
+    function deleteInvoice(id) {
+        if (confirm('Hapus invoice ini dari rekap?')) {
+            invoiceList = invoiceList.filter(i => i.id !== id);
+            localStorage.setItem('nf_invoices', JSON.stringify(invoiceList));
+            renderDashboardTable();
+        }
+    }
+
+    function sendWhatsApp() {
+        let wa = document.getElementById('student-wa').value.replace(/[^0-9]/g, '');
+        if (!wa) return alert('Masukkan nomor WA!');
+        if (wa.startsWith('0')) wa = '62' + wa.slice(1);
+
+        const name = document.getElementById('prev-name').innerText;
+        const invNum = document.getElementById('prev-inv-num').innerText;
+        const total = document.getElementById('prev-total').innerText;
+        const itemsText = currentInvoiceItems.map(i => `- ${i.title} (${i.qty}x): ${formatRupiah(i.subtotal)}`).join('\n');
+
+        const text = `Halo Bapak/Ibu Orang Tua dari *${name}*,\n\nBerikut ringkasan tagihan bimbingan belajar Nur Fikri:\n\n📌 *No Invoice:* ${invNum}\n\n*Rincian Item:*\n${itemsText}\n\n💰 *Total Pembayaran:* ${total}\n\nPembayaran dapat dilakukan via transfer bank/kasir Nur Fikri. Terima kasih.`;
+        window.open(`https://wa.me/${wa}?text=${encodeURIComponent(text)}`, '_blank');
+    }
+
+    function sendWaFromList(id) {
+        const inv = invoiceList.find(i => i.id === id);
+        if (!inv) return;
+        let wa = inv.wa.replace(/[^0-9]/g, '');
+        if (wa.startsWith('0')) wa = '62' + wa.slice(1);
+
+        const itemsText = inv.items.map(i => `- ${i.title} (${i.qty}x): ${formatRupiah(i.subtotal)}`).join('\n');
+        const text = `Halo Bapak/Ibu Orang Tua dari *${inv.name}*,\n\nBerikut ringkasan tagihan bimbingan belajar Nur Fikri:\n\n📌 *No Invoice:* ${inv.invNum}\n\n*Rincian Item:*\n${itemsText}\n\n💰 *Total Pembayaran:* ${formatRupiah(inv.total)}\n\nPembayaran dapat dilakukan via transfer bank/kasir Nur Fikri. Terima kasih.`;
+        window.open(`https://wa.me/${wa}?text=${encodeURIComponent(text)}`, '_blank');
+    }
+    </script>
+</body>
+</html>
